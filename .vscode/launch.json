@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "fine-tune",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/fine-tune.py",
+            "cwd": "${workspaceFolder}",
+            "args": [],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "classify",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/classify.py",
+            "cwd": "${workspaceFolder}",
+            "args": [],
+            "console": "integratedTerminal"
+        }
+    ]
+}
