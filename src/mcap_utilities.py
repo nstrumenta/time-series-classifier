@@ -2,15 +2,10 @@ import json
 from mcap.reader import make_reader
 from mcap.writer import Writer
 import matplotlib.pyplot as plt
-import statistics
-import pandas as pd
 import numpy as np
-import os
-import datetime
 import torch, torchaudio
-from typing import Dict, List, Optional
-from datasets import Dataset, Value, Array2D, ClassLabel, Features
-from transformers import ASTFeatureExtractor
+from typing import List
+from datasets import Dataset, Array2D, ClassLabel, Features
 import io
 import base64
 
@@ -59,6 +54,10 @@ def read_mcap(file_name):
 
 def create_dataset(
     file_pairs: List[List[str]],
+    use_unlabeled_sections: bool = False,
+    unlabeled_section_label: str = "Low",
+    aggregate_labels: bool = False,
+    aggregate_label_dict: dict = None,
 ):
     all_events = {}
     for file_pair in file_pairs:
@@ -68,14 +67,99 @@ def create_dataset(
             json_data = json.load(f)
             # add events to the existing list
             all_events[spectrogram_mcap_file] = json_data["events"]
+        if use_unlabeled_sections:
+            # open spectrogram mcap file header to get start and end time
+            with open(spectrogram_mcap_file, "rb") as f:
+                reader = make_reader(f)
+                mcap_summary = reader.get_summary()
+                mcap_start_time = mcap_summary.statistics.message_start_time
+                mcap_end_time = mcap_summary.statistics.message_end_time
+
+                current_file_events = sorted(
+                    json_data["events"],
+                    key=lambda x: x["startTime"]["sec"] * 1e9 + x["startTime"]["nsec"],
+                )
+
+                def create_gap_event(start_time, end_time, unlabeled_section_label):
+                    return {
+                        "endTime": {"sec": end_time // 1e9, "nsec": end_time % 1e9},
+                        "startTime": {
+                            "sec": start_time // 1e9,
+                            "nsec": start_time % 1e9,
+                        },
+                        "metadata": {"voltage_level": unlabeled_section_label, "": ""},
+                        "formattedTime": f"{start_time // 1e9}.{start_time % 1e9}",
+                    }
+
+                current_file_events = sorted(
+                    json_data["events"],
+                    key=lambda x: x["startTime"]["sec"] * 1e9 + x["startTime"]["nsec"],
+                )
+                gaps = []
+
+                # Add gap at the beginning if necessary
+                if current_file_events and (gap_start_time := mcap_start_time) < (
+                    gap_end_time := current_file_events[0]["startTime"]["sec"] * 1e9
+                    + current_file_events[0]["startTime"]["nsec"]
+                ):
+                    gaps.append(
+                        create_gap_event(
+                            gap_start_time, gap_end_time, unlabeled_section_label
+                        )
+                    )
+
+                # Iterate over events to find gaps between events
+                gaps.extend(
+                    [
+                        create_gap_event(
+                            gap_start_time, gap_end_time, unlabeled_section_label
+                        )
+                        for i in range(1, len(current_file_events))
+                        if (
+                            gap_start_time := current_file_events[i - 1]["endTime"][
+                                "sec"
+                            ]
+                            * 1e9
+                            + current_file_events[i - 1]["endTime"]["nsec"]
+                        )
+                        < (
+                            gap_end_time := current_file_events[i]["startTime"]["sec"]
+                            * 1e9
+                            + current_file_events[i]["startTime"]["nsec"]
+                        )
+                    ]
+                )
+
+                # Add gap at the end if necessary
+                if current_file_events and (
+                    gap_start_time := current_file_events[-1]["endTime"]["sec"] * 1e9
+                    + current_file_events[-1]["endTime"]["nsec"]
+                ) < (gap_end_time := mcap_end_time):
+                    gaps.append(
+                        create_gap_event(
+                            gap_start_time, gap_end_time, unlabeled_section_label
+                        )
+                    )
+
+                all_events[spectrogram_mcap_file].extend(gaps)
 
     # Create class labels from events
-    labels = {
-        f"{list(event['metadata'].keys())[0]}_{event['metadata'][list(event['metadata'].keys())[0]]}"
-        for events in all_events.values()
-        for event in events
-        if event["metadata"]
-    }
+    labels = set()
+    for events in all_events.values():
+        for event in events:
+            if event["metadata"]:
+                key = list(event["metadata"].keys())[0]
+                value = event["metadata"][key]
+                if (
+                    aggregate_labels
+                    and aggregate_label_dict
+                    and value in aggregate_label_dict
+                ):
+                    value = aggregate_label_dict[value]
+                    #write the new value back to the metadata
+                    event["metadata"] = {key: value}
+                labels.add(f"{key}_{value}")
+
     class_labels = ClassLabel(names=list(labels))
     # Define features with audio and label columns
     features = Features(

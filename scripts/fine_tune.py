@@ -31,7 +31,7 @@ print(nst_client.get_project())
 initial_cwd = os.getcwd()
 
 
-# create a model_id to name this fine-tuned model
+# create a model_id to name this fine_tuned model
 model_id = "3AF306"  # uuid.uuid4().hex.upper()[:6]
 
 from transformers import ASTFeatureExtractor
@@ -74,7 +74,12 @@ def download_if_not_exists(file, dest=None, extract=False):
         print(f"{dest} exists.")
 
 
-logs = ["Sensor_Log_2023-11-08_07_36_21"]
+logs = [
+    "Sensor_Log_2023-11-08_07_36_21",
+    "Sensor_Log_2023-11-08_08_25_49",
+    "Sensor_Log_2023-12-07_10_20_28",
+    "Sensor_Log_2023-11-08_09_05_43",
+]
 for log_prefix in logs:
     # download the input file and label file
     input_file = f"{log_prefix}.mcap"
@@ -105,13 +110,18 @@ for log_prefix in logs:
 # create a dataset from the file pairs [spectrogram_file, label_file]
 dataset = mcap_utilities.create_dataset(
     file_pairs=file_pairs,
+    use_unlabeled_sections=True,
+    unlabeled_section_label="low",
+    aggregate_labels=True,
+    aggregate_label_dict={
+        "10_kV": "medium",
+        "20_kV": "medium",
+        "110_kV": "high",
+        "130_kV": "high",
+    },
 )
 
 dataset.save_to_disk("dataset")
-
-# we save model input name and sampling rate for later use
-model_input_name = feature_extractor.model_input_names[0]  # key -> 'input_values'
-SAMPLING_RATE = feature_extractor.sampling_rate
 
 from transformers import ASTConfig, ASTForAudioClassification
 

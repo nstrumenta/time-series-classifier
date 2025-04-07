@@ -1,8 +1,5 @@
 import sys
 import os
-import numpy as np
-from datasets import Audio, ClassLabel, load_dataset
-import torch
 from nstrumenta import NstrumentaClient
 import tarfile
 
@@ -83,7 +80,7 @@ from transformers import ASTForAudioClassification
 pretrained_model = "MIT/ast-finetuned-audioset-10-10-0.4593"
 feature_extractor = ASTFeatureExtractor.from_pretrained(pretrained_model)
 
-# load the fine-tuned model from "model" for prediction using huggingface transformers
+# load the fine_tuned model from "model" for prediction using huggingface transformers
 model = ASTForAudioClassification.from_pretrained("./model")
 
 
