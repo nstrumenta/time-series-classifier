@@ -1,8 +1,5 @@
-FROM nstrumenta/data-job-runner
-
-RUN ln -s /usr/bin/python3 /usr/bin/python
+FROM nstrumenta/developer:3.1.37
 
 COPY requirements.txt .
 
 RUN pip install -r requirements.txt
-

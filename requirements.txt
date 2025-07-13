@@ -11,10 +11,13 @@ matplotlib==3.9.2
 plotly==4.4.0
 pyts==0.13.0
 sktime==0.34.0
-tensorflow==2.17.0
+tensorflow==2.18.0
 torch==2.4.1
 torchaudio==2.4.1
 torchvision==0.19.1
-transformers==4.45.2
+transformers[torch]==4.46.2
 tslearn==0.6.2
 umap-learn==0.5.4
+evaluate==0.4.3
+tf-keras==2.18.0
+nstrumenta==0.1.3
