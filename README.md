@@ -102,45 +102,69 @@ classify: [![Open In Colab](https://colab.research.google.com/assets/colab-badge
 
 fine_tune: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nstrumenta/time-series-classifier/blob/main/notebooks/fine_tune.ipynb)
 
+## Experiment File Example
 
-## experiment file usage
+Experiment files define datasets for training and classification. Here's an example from our synthetic magnetic distortion data:
 
-To add a folder that triggers reloading in Panels, add a "dirname" entry to correspond to the `log_prefix = "Sensor_Log_2023-11-08_09_05_43"` in `classify.ipynb`
-
-for example, in Sensor_Log_2023-11-07_12_21_46.experiment.json :
-```js
+```json
 {
-    "dirname": "Sensor_Log_2023-11-08_09_05_43",
-    "dataFilePath": "projects/peek-ai-2023/data/Sensor_Log_2023-11-08_09_05_43.fft.merged.mcap",
-    "layoutFilePath": "projects/peek-ai-2023/data/layoutDB.json",
-    "labelFiles": [
-        {
-            "filePath": "projects/peek-ai-2023/data/Sensor_Log_2023-11-08_09_05_43.labels.json"
-        }
-    ],
-    "videos": [
-        {
-            "name": "3rdperson",
-            "filePath": "projects/peek-ai-2023/data/Sensor_Log_2023-11-08_09_05_43_3rdPerson.mp4",
-            "startTime": 1701188708000,
-            "offset": -1754331900
-        },
-        {
-            "name": "bodycam",
-            "filePath": "projects/peek-ai-2023/data/Sensor_Log_2023-11-08_09_05_43_bodycam.MP4",
-            "startTime": 1699434343000,
-            "offset": 700,
-            "rotate": -90
-        },
-        {
-            "name": "gopro",
-            "filePath": "projects/peek-ai-2023/data/Sensor_Log_2023-11-08_09_05_43_gopro.MP4",
-            "startTime": 1699437935000,
-            "offset": -3598870
-        }
-    ]
+  "dirname": "synthetic_datasets/training_sequence_0",
+  "labelFiles": [
+    {
+      "filePath": "projects/nst-test/data/synthetic_datasets/training_sequence_0/training_sequence_0.labels.json"
+    }
+  ],
+  "description": "Synthetic dataset: training_sequence_0",
+  "segments": [
+    {
+      "name": "high_motion_0",
+      "duration_s": 6.942836128288839,
+      "rotation_rpy_degrees": {
+        "roll": 1.5799431492871534,
+        "pitch": -6.920307915411698,
+        "yaw": -77.28209866177114
+      },
+      "magnetic_distortion": 2.115377702012322,
+      "mag_distortion": {
+        "level": "high"
+      }
+    },
+    {
+      "name": "none_motion_1", 
+      "duration_s": 18.26988031964769,
+      "rotation_rpy_degrees": {
+        "roll": 18.08781247960689,
+        "pitch": 6.5994098443636915,
+        "yaw": 81.38743907152028
+      },
+      "magnetic_distortion": 0.0,
+      "mag_distortion": {
+        "level": "none"
+      }
+    }
+  ],
+  "metadata": {
+    "generated_by": "synthetic_data.py",
+    "sample_rate": 100,
+    "total_duration_s": 600.6333273280001,
+    "classification_type": "mag_distortion",
+    "distortion_levels": ["none", "high", "low"]
+  }
 }
 ```
+
+**Key Fields:**
+- `dirname`: Points to the directory containing the MCAP data files
+- `labelFiles`: Array of label files with classification data  
+- `description`: Human-readable description of the dataset
+- `segments`: Detailed information about each data segment including motion parameters and distortion levels
+- `metadata`: Additional information about data generation and classification schema
+
+**Magnetic Distortion Levels:**
+- `none` (0): No magnetic distortion applied
+- `low` (1): Low-level magnetic field distortion  
+- `high` (2): High-level magnetic field distortion
+
 
 ## set up secrets
 ![colab secrets](image.png)
