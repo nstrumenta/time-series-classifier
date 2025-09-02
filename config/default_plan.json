@@ -1,0 +1,176 @@
+{
+    "initialization": {
+        "pose": {
+            "origin": {
+                "lat": 38.446421508551126,
+                "lng": -122.6870156573012,
+                "height": 0.0
+            },
+            "position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "rotation": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            }
+        },
+        "start_time_ns": 0,
+        "sample_rate": 30,
+        "mag": {
+            "calibration": {
+                "bias": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "matrix": [
+                    [
+                        0.00053,
+                        0.0,
+                        0.0
+                    ],
+                    [
+                        0.0,
+                        0.00053,
+                        0.0
+                    ],
+                    [
+                        0.0,
+                        0.0,
+                        0.00053
+                    ]
+                ]
+            }
+        },
+        "acc": {
+            "calibration": {
+                "bias": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "matrix": [
+                    [
+                        0.000185,
+                        0.0,
+                        0.0
+                    ],
+                    [
+                        0.0,
+                        0.000185,
+                        0.0
+                    ],
+                    [
+                        0.0,
+                        0.0,
+                        0.000185
+                    ]
+                ]
+            }
+        },
+        "gyro": {
+            "calibration": {
+                "bias": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "matrix": [
+                    [
+                        0.00001,
+                        0.0,
+                        0.0
+                    ],
+                    [
+                        0.0,
+                        0.00001,
+                        0.0
+                    ],
+                    [
+                        0.0,
+                        0.0,
+                        0.00001
+                    ]
+                ]
+            }
+        }
+    },
+    "segments": [
+        {
+            "name": "segment1",
+            "duration_s": 15.0,
+            "rotation_rpy_degrees": {
+                "roll": 15.0,
+                "pitch": 0.0,
+                "yaw": 45.0
+            }
+        },
+        {
+            "name": "segment2",
+            "duration_s": 5.0,
+            "rotation_rpy_degrees": {
+                "roll": 45.0,
+                "pitch": 0.0,
+                "yaw": 0.0
+            }
+        },
+        {
+            "name": "segment3",
+            "duration_s": 5.0,
+            "rotation_rpy_degrees": {
+                "roll": 0.0,
+                "pitch": 45.0,
+                "yaw": 0.0
+            }
+        },
+        {
+            "name": "segment4",
+            "duration_s": 5.0,
+            "rotation_rpy_degrees": {
+                "roll": 0.0,
+                "pitch": 0.0,
+                "yaw": 180.0
+            }
+        },
+        {
+            "name": "segment5",
+            "duration_s": 5.0,
+            "rotation_rpy_degrees": {
+                "roll": 180.0,
+                "pitch": 0.0,
+                "yaw": 0.0
+            }
+        },
+        {
+            "name": "segment6",
+            "duration_s": 5.0,
+            "rotation_rpy_degrees": {
+                "roll": 0.0,
+                "pitch": 180.0,
+                "yaw": 0.0
+            }
+        },
+        {
+            "name": "segment7",
+            "duration_s": 10.0,
+            "rotation_rpy_degrees": {
+                "roll": 0.0,
+                "pitch": 10.0,
+                "yaw": 0.0
+            }
+        },
+        {
+            "name": "segment8",
+            "duration_s": 10.0,
+            "rotation_rpy_degrees": {
+                "roll": 1.0,
+                "pitch": 0.0,
+                "yaw": 0.0
+            }
+        }
+    ]
+}
