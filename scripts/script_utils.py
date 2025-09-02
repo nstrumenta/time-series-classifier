@@ -7,6 +7,7 @@ and file operations.
 import os
 import sys
 import tarfile
+import hashlib
 from typing import Optional
 from nstrumenta import NstrumentaClient
 
@@ -111,6 +112,9 @@ def fetch_nstrumenta_file(
     return local_path
 
 
+import hashlib
+
+
 def upload_with_prefix(
     client: NstrumentaClient, 
     local_file: str, 
@@ -129,6 +133,68 @@ def upload_with_prefix(
     remote_path = f"{remote_prefix}/{local_file}"
     print(f"Uploading {local_file} to {remote_path}")
     client.upload(local_file, remote_path, overwrite=overwrite)
+
+
+def file_hash(filepath: str) -> str:
+    """
+    Calculate MD5 hash of a file.
+    
+    Args:
+        filepath: Path to the file
+        
+    Returns:
+        MD5 hash as hex string
+    """
+    hash_md5 = hashlib.md5()
+    try:
+        with open(filepath, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        return hash_md5.hexdigest()
+    except FileNotFoundError:
+        return ""
+
+
+def upload_if_changed(
+    client: NstrumentaClient,
+    local_file: str,
+    remote_prefix: str,
+    hash_cache: dict = None,
+    overwrite: bool = True
+) -> bool:
+    """
+    Upload a file only if it has changed since last upload.
+    
+    Args:
+        client: NstrumentaClient instance
+        local_file: Local file path to upload
+        remote_prefix: Remote path prefix (e.g., log name)
+        hash_cache: Dictionary to store file hashes (optional)
+        overwrite: Whether to overwrite existing remote files
+        
+    Returns:
+        True if file was uploaded, False if skipped
+    """
+    if not os.path.exists(local_file):
+        return False
+        
+    current_hash = file_hash(local_file)
+    cache_key = f"{remote_prefix}/{local_file}"
+    
+    # Check if we have a hash cache and if the file hasn't changed
+    if hash_cache is not None and cache_key in hash_cache:
+        if hash_cache[cache_key] == current_hash:
+            print(f"Skipping {local_file} - unchanged")
+            return False
+    
+    # File is new or changed, upload it
+    upload_with_prefix(client, local_file, remote_prefix, overwrite=overwrite)
+    
+    # Update hash cache
+    if hash_cache is not None:
+        hash_cache[cache_key] = current_hash
+        
+    return True
 
 
 # Convenience function for common script initialization

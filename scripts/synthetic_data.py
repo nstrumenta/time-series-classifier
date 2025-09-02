@@ -30,126 +30,68 @@ def load_base_plan():
 
 def create_plan_variations():
     """Create different plan variations for magnetic distortion classification"""
-    base_plan = load_base_plan()
+    import random
+    
+    def create_long_sequence_plan(file_index, total_duration=600):
+        """Create a 10-minute plan with varying periods of distortion"""
+        base_plan = load_base_plan()
+        
+        segments = []
+        current_time = 0
+        
+        while current_time < total_duration:
+            # Random segment duration between 5-30 seconds
+            segment_duration = random.uniform(5, 30)
+            
+            # Don't exceed total duration
+            if current_time + segment_duration > total_duration:
+                segment_duration = total_duration - current_time
+            
+            # Random distortion level (0=none, 1=low, 2=high)
+            distortion_level = random.choice([0, 1, 2])
+            
+            # Create distortion parameters based on level
+            if distortion_level == 0:  # No distortion
+                mag_distortion_value = 0.0
+                level_name = "none"
+            elif distortion_level == 1:  # Low distortion
+                mag_distortion_value = random.uniform(0.3, 0.7)
+                level_name = "low"
+            else:  # High distortion
+                mag_distortion_value = random.uniform(1.5, 2.5)
+                level_name = "high"
+            
+            # Random rotation in roll/pitch/yaw degrees
+            segment = {
+                "name": f"{level_name}_motion_{len(segments)}",
+                "duration_s": segment_duration,
+                "rotation_rpy_degrees": {
+                    "roll": random.uniform(-45, 45),
+                    "pitch": random.uniform(-30, 30), 
+                    "yaw": random.uniform(-90, 90)
+                },
+                "magnetic_distortion": mag_distortion_value,
+                "mag_distortion": {
+                    "level": level_name
+                }
+            }
+            
+            segments.append(segment)
+            current_time += segment_duration
+        
+        plan = {
+            "initialization": base_plan["initialization"],
+            "segments": segments
+        }
+        
+        return plan
     
     plans = []
     
-    # Plan 1: No magnetic distortion (baseline)
-    plan_1 = json.loads(json.dumps(base_plan))  # Deep copy
-    plan_1["segments"] = [
-        {
-            "name": "clean_roll",
-            "duration_s": 5.0,
-            "rotation_rpy_degrees": {"roll": 45.0, "pitch": 0.0, "yaw": 0.0},
-            "mag_distortion": {
-                "level": "none",
-                "world_x": 0.0,
-                "world_y": 0.0,
-                "world_z": 0.0
-            }
-        },
-        {
-            "name": "clean_pitch",
-            "duration_s": 5.0,
-            "rotation_rpy_degrees": {"roll": 0.0, "pitch": 45.0, "yaw": 0.0},
-            "mag_distortion": {
-                "level": "none",
-                "world_x": 0.0,
-                "world_y": 0.0,
-                "world_z": 0.0
-            }
-        },
-        {
-            "name": "clean_yaw", 
-            "duration_s": 5.0,
-            "rotation_rpy_degrees": {"roll": 0.0, "pitch": 0.0, "yaw": 90.0},
-            "mag_distortion": {
-                "level": "none",
-                "world_x": 0.0,
-                "world_y": 0.0,
-                "world_z": 0.0
-            }
-        }
-    ]
-    plans.append(("no_distortion", plan_1))
-    
-    # Plan 2: Low magnetic distortion
-    plan_2 = json.loads(json.dumps(base_plan))  # Deep copy
-    plan_2["segments"] = [
-        {
-            "name": "low_distortion_roll",
-            "duration_s": 5.0,
-            "rotation_rpy_degrees": {"roll": 45.0, "pitch": 0.0, "yaw": 0.0},
-            "mag_distortion": {
-                "level": "low",
-                "world_x": 10.0,  # μT distortion in world X
-                "world_y": 5.0,   # μT distortion in world Y
-                "world_z": 0.0
-            }
-        },
-        {
-            "name": "low_distortion_pitch",
-            "duration_s": 5.0,
-            "rotation_rpy_degrees": {"roll": 0.0, "pitch": 45.0, "yaw": 0.0},
-            "mag_distortion": {
-                "level": "low",
-                "world_x": 0.0,
-                "world_y": 8.0,   # μT distortion in world Y
-                "world_z": 6.0    # μT distortion in world Z
-            }
-        },
-        {
-            "name": "low_distortion_yaw",
-            "duration_s": 5.0,
-            "rotation_rpy_degrees": {"roll": 0.0, "pitch": 0.0, "yaw": 90.0},
-            "mag_distortion": {
-                "level": "low",
-                "world_x": 5.0,
-                "world_y": 0.0,
-                "world_z": 10.0
-            }
-        }
-    ]
-    plans.append(("low_distortion", plan_2))
-    
-    # Plan 3: High magnetic distortion
-    plan_3 = json.loads(json.dumps(base_plan))  # Deep copy
-    plan_3["segments"] = [
-        {
-            "name": "high_distortion_roll",
-            "duration_s": 5.0,
-            "rotation_rpy_degrees": {"roll": 45.0, "pitch": 0.0, "yaw": 0.0},
-            "mag_distortion": {
-                "level": "high",
-                "world_x": 25.0,  # μT distortion in world X
-                "world_y": 15.0,  # μT distortion in world Y
-                "world_z": 0.0
-            }
-        },
-        {
-            "name": "high_distortion_pitch", 
-            "duration_s": 5.0,
-            "rotation_rpy_degrees": {"roll": 0.0, "pitch": 45.0, "yaw": 0.0},
-            "mag_distortion": {
-                "level": "high",
-                "world_x": 0.0,
-                "world_y": 30.0,  # μT distortion in world Y
-                "world_z": 20.0   # μT distortion in world Z
-            }
-        },
-        {
-            "name": "high_distortion_yaw",
-            "duration_s": 5.0,
-            "rotation_rpy_degrees": {"roll": 0.0, "pitch": 0.0, "yaw": 90.0},
-            "mag_distortion": {
-                "level": "high",
-                "world_x": 20.0,
-                "world_y": 0.0,
-                "world_z": 25.0
-            }
-        }
-    ]
-    plans.append(("high_distortion", plan_3))
+    # Generate 5 long sequence files
+    for i in range(5):
+        plan = create_long_sequence_plan(i)
+        plans.append((f"training_sequence_{i}", plan))
     
     return plans
 
@@ -177,8 +119,8 @@ def main():
         print(f"\nGenerating dataset: {plan_name}")
         
         # Generate synthetic data and labels
-        mcap_file = f"data/{plan_name}.mcap"
-        labels_file = f"data/{plan_name}.labels.json"
+        mcap_file = f"{plan_name}.mcap"
+        labels_file = f"{plan_name}.labels.json"
         
         generator.generate_from_plan_data(plan_data, mcap_file, labels_file)
         
@@ -190,7 +132,6 @@ def main():
         # Create experiment configuration for this dataset
         experiment_config = {
             "dirname": f"synthetic_datasets/{plan_name}",
-            "dataFilePath": f"projects/nst-test/data/synthetic_datasets/{plan_name}/{mcap_file}",
             "labelFiles": [
                 {
                     "filePath": f"projects/nst-test/data/synthetic_datasets/{plan_name}/{labels_file}"
