@@ -3,32 +3,21 @@ import os
 import numpy as np
 from datasets import Audio, ClassLabel, load_dataset
 import torch
-from nstrumenta import NstrumentaClient
-import tarfile
 import uuid
+import tarfile
+from script_utils import (
+    init_script_environment,
+    setup_working_directory,
+    reset_to_initial_cwd,
+    fetch_nstrumenta_file,
+    upload_with_prefix
+)
 
+# Initialize script environment
+src_dir, nst_client = init_script_environment()
 
-# Determine the absolute path to the src directory
-script_dir = os.path.dirname(os.path.abspath(__file__))
-src_dir = os.path.abspath(os.path.join(script_dir, "..", "src"))
-# Add the src directory to the Python path
-sys.path.append(src_dir)
-
+# Import project modules after src path is set up
 import mcap_utilities
-
-
-# use colab user data or getenv
-if "google.colab" in sys.modules:
-    from google.colab import userdata
-
-    os.environ["NSTRUMENTA_API_KEY"] = userdata.get("NSTRUMENTA_API_KEY")
-
-nst_client = NstrumentaClient(os.getenv("NSTRUMENTA_API_KEY"))
-
-print(nst_client.get_project())
-
-# Store the initial working directory
-initial_cwd = os.getcwd()
 
 
 # create a model_id to name this fine_tuned model
@@ -43,35 +32,11 @@ feature_extractor = ASTFeatureExtractor.from_pretrained(pretrained_model)
 working_folder = f"./temp/{model_id}"
 
 
-# set working folder to the project root
-# Function to reset the cwd to the initial directory
-def reset_cwd():
-    os.chdir(initial_cwd)
-    print(f"Current working directory reset to: {os.getcwd()}")
-
-
-reset_cwd()
+reset_to_initial_cwd()
 
 # change to the working folder
-os.makedirs(working_folder, exist_ok=True)
-os.chdir(working_folder)
+setup_working_directory(working_folder)
 file_pairs = []
-
-# print the current working directory
-print(f"current working directory: {os.getcwd()}")
-
-
-def download_if_not_exists(file, dest=None, extract=False):
-    dest = dest if dest else file
-    if not os.path.exists(dest):
-        print(f"downloading {file} to {dest}.")
-        nst_client.download(file, dest)
-        if extract:
-            with tarfile.open(dest, "r:gz") as tar:
-                tar.extractall()
-
-    else:
-        print(f"{dest} exists.")
 
 
 logs = [
@@ -86,8 +51,8 @@ for log_prefix in logs:
     label_file = f"{log_prefix}.labels.json"
     spectrogram_mcap_file = f"{log_prefix}.spectrogram.mcap"
     file_pairs.append([spectrogram_mcap_file, label_file])
-    download_if_not_exists(input_file)
-    download_if_not_exists(label_file)
+    fetch_nstrumenta_file(nst_client, input_file)
+    fetch_nstrumenta_file(nst_client, label_file)
 
     def create_spectrogram_if_not_exists(input_file, spectrogram_mcap_file):
         if not os.path.exists(spectrogram_mcap_file):
@@ -96,10 +61,11 @@ for log_prefix in logs:
                 spectrogram_mcap_file=spectrogram_mcap_file,
                 feature_extractor=feature_extractor,
             )
-            nst_client.upload(
+            upload_with_prefix(
+                nst_client,
                 spectrogram_mcap_file,
-                f"{model_id}/{spectrogram_mcap_file}",
-                overwrite=True,
+                model_id,
+                overwrite=True
             )
         else:
             print(f"{spectrogram_mcap_file} exists.")
@@ -232,7 +198,7 @@ with tarfile.open(model_tar_filename, "w:gz") as tar:
 
 # upload model to nstrumenta
 print(f"uploading {model_tar_filename} to nstrumenta.")
-nst_client.upload(model_tar_filename, f"{model_tar_filename}", overwrite=True)
+nst_client.upload(model_tar_filename, model_tar_filename, overwrite=True)
 
 # run inference on test set
 predictions = trainer.predict(dataset["test"])
