@@ -92,6 +92,72 @@ class SyntheticDataGenerator:
         
         return channel_ids
     
+    def generate_labels(self, plan_data: dict, labels_file: str, collection_path: str = None):
+        """Generate label file based on plan segments with magnetic distortion classification
+        
+        Args:
+            plan_data: Plan data dictionary containing segments with mag_distortion info
+            labels_file: Output labels JSON file path  
+            collection_path: Path for the collection field in labels
+        """
+        import uuid
+        
+        if collection_path is None:
+            collection_path = f"projects/nst-test/data/{os.path.splitext(os.path.basename(labels_file))[0]}/{os.path.basename(labels_file)}"
+        
+        events = []
+        current_time_s = 0
+        
+        for segment in plan_data["segments"]:
+            duration_s = segment["duration_s"]
+            
+            # Check if segment has magnetic distortion info to classify
+            if "mag_distortion" in segment:
+                distortion_info = segment["mag_distortion"]
+                distortion_level = distortion_info.get("level", "none")
+                
+                # Create label for the entire segment duration
+                start_time_ns = int(current_time_s * 1e9)
+                end_time_ns = int((current_time_s + duration_s) * 1e9)
+                
+                # Map distortion level to classification values (matching example_labels format)
+                if distortion_level == "none":
+                    distortion_value = "0"
+                elif distortion_level == "low":
+                    distortion_value = "1" 
+                elif distortion_level == "high":
+                    distortion_value = "2"
+                else:
+                    distortion_value = "0"  # default to none
+                
+                event = {
+                    "id": str(uuid.uuid4()),
+                    "startTime": {
+                        "sec": int(start_time_ns // 1e9),
+                        "nsec": int(start_time_ns % 1e9)
+                    },
+                    "endTime": {
+                        "sec": int(end_time_ns // 1e9), 
+                        "nsec": int(end_time_ns % 1e9)
+                    },
+                    "metadata": {
+                        "mag_distortion": distortion_value,
+                        "": ""  # Empty field to match example schema
+                    },
+                    "collection": collection_path
+                }
+                
+                events.append(event)
+            
+            current_time_s += duration_s
+        
+        # Write labels file (matching exact schema format)
+        labels_data = {"events": events}
+        with open(labels_file, 'w') as f:
+            json.dump(labels_data, f, indent=4)  # Use 4-space indent to match example
+        
+        return labels_data
+
     def generate(self, plan_file: str = None, output_file: str = None, plan_data: dict = None, verbose: bool = True):
         """Generate synthetic data from plan file or plan data
         
@@ -188,8 +254,38 @@ class SyntheticDataGenerator:
                     pose.rotation = multiply_quaternions(pose.rotation, segment_rotation)
                     inverse_pose_rotation = quaternion_inverse(pose.rotation)
                     
-                    # Magnetometer
+                    # Magnetometer (with optional world-frame distortion)
                     mag_truth = rotate_vector(mag_ref, inverse_pose_rotation)
+                    
+                    # Apply magnetic distortion if specified in segment
+                    if "mag_distortion" in segment:
+                        distortion_info = segment["mag_distortion"]
+                        distortion_level = distortion_info.get("level", "none")
+                        
+                        if distortion_level != "none":
+                            # World-frame distortion vector
+                            world_distortion = Vector3(
+                                distortion_info.get("world_x", 0.0),
+                                distortion_info.get("world_y", 0.0), 
+                                distortion_info.get("world_z", 0.0)
+                            )
+                            
+                            # Apply scaling based on distortion level
+                            if distortion_level == "low":
+                                scale = 0.2  # 20% of specified distortion
+                            elif distortion_level == "high":
+                                scale = 1.0  # 100% of specified distortion
+                            else:
+                                scale = 0.0
+                            
+                            # Rotate distortion to sensor frame and add to truth
+                            sensor_distortion = rotate_vector(world_distortion, inverse_pose_rotation)
+                            mag_truth = Vector3(
+                                mag_truth.x + sensor_distortion.x * scale,
+                                mag_truth.y + sensor_distortion.y * scale,
+                                mag_truth.z + sensor_distortion.z * scale
+                            )
+                    
                     self.write_message(writer, channel_ids, "mag_truth", mag_truth.to_list(), current_time)
                     mag_raw = apply_inverse_sensor_calibration(mag_truth, mag_calibration)
                     self.write_message(writer, channel_ids, "mag_raw", mag_raw.to_list(), current_time)
@@ -226,12 +322,29 @@ class SyntheticDataGenerator:
             file_size = os.path.getsize(output_file)
             print(f"Successfully generated synthetic data: {output_file} ({file_size} bytes)")
     
-    def generate_from_plan_data(self, plan_data: dict, output_file: str, verbose: bool = True):
+    def generate_from_plan_data(self, plan_data: dict, output_file: str, labels_file: str = None, verbose: bool = True):
         """Convenience method to generate from plan data dictionary
         
         Args:
             plan_data: Plan data as dictionary
             output_file: Output MCAP file path
+            labels_file: Optional output labels JSON file path
             verbose: Whether to print progress information
         """
-        return self.generate(plan_data=plan_data, output_file=output_file, verbose=verbose)
+        # Generate the MCAP data
+        self.generate(plan_data=plan_data, output_file=output_file, verbose=verbose)
+        
+        # Generate labels if requested and plan has label metadata
+        if labels_file and self._has_label_metadata(plan_data):
+            if verbose:
+                print(f"Generating labels: {labels_file}")
+            self.generate_labels(plan_data, labels_file)
+        
+        return output_file
+    
+    def _has_label_metadata(self, plan_data: dict) -> bool:
+        """Check if plan has magnetic distortion metadata in any segment"""
+        for segment in plan_data.get("segments", []):
+            if "mag_distortion" in segment:
+                return True
+        return False
