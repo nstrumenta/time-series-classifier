@@ -1,35 +1,17 @@
-import sys
 import os
-from nstrumenta import NstrumentaClient
-import tarfile
+from script_utils import (
+    init_script_environment,
+    setup_working_directory,
+    reset_to_initial_cwd,
+    fetch_nstrumenta_file,
+    upload_with_prefix
+)
 
+# Initialize script environment
+src_dir, nst_client = init_script_environment()
 
-# Determine the absolute path to the src directory
-script_dir = os.path.dirname(os.path.abspath(__file__))
-src_dir = os.path.abspath(os.path.join(script_dir, "..", "src"))
-# Add the src directory to the Python path
-sys.path.append(src_dir)
-
+# Import project modules after src path is set up
 import mcap_utilities
-
-# use colab user data or getenv
-if "google.colab" in sys.modules:
-    from google.colab import userdata
-
-    os.environ["NSTRUMENTA_API_KEY"] = userdata.get("NSTRUMENTA_API_KEY")
-
-nst_client = NstrumentaClient(os.getenv("NSTRUMENTA_API_KEY"))
-
-print(nst_client.get_project())
-
-# Store the initial working directory
-initial_cwd = os.getcwd()
-
-
-# Function to reset the cwd to the initial directory
-def reset_cwd():
-    os.chdir(initial_cwd)
-    print(f"Current working directory reset to: {os.getcwd()}")
 
 
 model_id = "3AF306"
@@ -46,31 +28,13 @@ classification_file = f"{log_prefix}.classification.mcap"
 model_tar_filename = f"{model_id}.model.tar.gz"
 
 # set working folder to the project root
-reset_cwd()
+reset_to_initial_cwd()
 # change to the working folder
-os.makedirs(working_folder, exist_ok=True)
-os.chdir(working_folder)
+setup_working_directory(working_folder)
 
 
-# print the current working directory
-print(f"current working directory: {os.getcwd()}")
-
-
-def download_if_not_exists(file, dest=None, extract=False):
-    dest = dest if dest else file
-    if not os.path.exists(dest):
-        print(f"downloading {file} to {dest}.")
-        nst_client.download(file, dest)
-        if extract:
-            with tarfile.open(dest, "r:gz") as tar:
-                tar.extractall()
-
-    else:
-        print(f"{dest} exists.")
-
-
-download_if_not_exists(input_file)
-download_if_not_exists(model_tar_filename, model_tar_filename, extract=True)
+fetch_nstrumenta_file(nst_client, input_file)
+fetch_nstrumenta_file(nst_client, model_tar_filename, model_tar_filename, extract_tar=True)
 
 
 from transformers import ASTFeatureExtractor
@@ -91,10 +55,11 @@ def create_spectrogram_if_not_exists(input_file, spectrogram_mcap_file):
             spectrogram_mcap_file=spectrogram_mcap_file,
             feature_extractor=feature_extractor,
         )
-        nst_client.upload(
+        upload_with_prefix(
+            nst_client,
             spectrogram_mcap_file,
-            f"{log_prefix}/{spectrogram_mcap_file}",
-            overwrite=True,
+            log_prefix,
+            overwrite=True
         )
     else:
         print(f"{spectrogram_mcap_file} exists.")
@@ -108,8 +73,9 @@ mcap_utilities.classify_from_spectrogram(
     model=model,
 )
 
-nst_client.upload(
+upload_with_prefix(
+    nst_client,
     classification_file,
-    f"{log_prefix}/{classification_file}",
-    overwrite=True,
+    log_prefix,
+    overwrite=True
 )

@@ -18,6 +18,15 @@
             "cwd": "${workspaceFolder}",
             "args": [],
             "console": "integratedTerminal"
+        },
+        {
+            "name": "nlp",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/scripts/nlp.py",
+            "cwd": "${workspaceFolder}",
+            "args": [],
+            "console": "integratedTerminal"
         }
     ]
 }

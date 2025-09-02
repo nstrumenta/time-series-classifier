@@ -1,0 +1,8 @@
+{
+  "dirname": "synthetic_test",
+  "labelFiles": [
+    {
+      "filePath": "projects/nst-test/data/synthetic_test/synthetic_test.labels.json"
+    }
+  ]
+}

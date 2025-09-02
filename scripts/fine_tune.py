@@ -1,38 +1,55 @@
 import sys
 import os
+import argparse
 import numpy as np
 from datasets import Audio, ClassLabel, load_dataset
 import torch
-from nstrumenta import NstrumentaClient
-import tarfile
 import uuid
+import tarfile
+from transformers import ASTFeatureExtractor
+from script_utils import (
+    init_script_environment,
+    setup_working_directory,
+    reset_to_initial_cwd,
+    fetch_nstrumenta_file,
+    upload_with_prefix,
+    upload_if_changed
+)
 
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='Fine-tune magnetic distortion classifier')
+parser.add_argument('--debug', action='store_true', 
+                    help='Run in debug mode with reduced training parameters')
+args = parser.parse_args()
 
-# Determine the absolute path to the src directory
-script_dir = os.path.dirname(os.path.abspath(__file__))
-src_dir = os.path.abspath(os.path.join(script_dir, "..", "src"))
-# Add the src directory to the Python path
-sys.path.append(src_dir)
+# Initialize script environment
+src_dir, nst_client = init_script_environment()
 
+# Import project modules after src path is set up
 import mcap_utilities
+from synthetic import SyntheticDataGenerator
 
-
-# use colab user data or getenv
-if "google.colab" in sys.modules:
-    from google.colab import userdata
-
-    os.environ["NSTRUMENTA_API_KEY"] = userdata.get("NSTRUMENTA_API_KEY")
-
-nst_client = NstrumentaClient(os.getenv("NSTRUMENTA_API_KEY"))
-
-print(nst_client.get_project())
-
-# Store the initial working directory
-initial_cwd = os.getcwd()
-
-
-# create a model_id to name this fine_tuned model
-model_id = "3AF306"  # uuid.uuid4().hex.upper()[:6]
+# Configuration based on debug mode
+if args.debug:
+    model_id = "MAG_DIST_DEBUG"
+    max_steps = 10
+    num_train_epochs = 1
+    per_device_train_batch_size = 1
+    per_device_eval_batch_size = 1
+    eval_steps = 5
+    debug_limit = 1  # Only use first sequence for debugging
+    print("=== DEBUG MODE ENABLED ===")
+    print("Using reduced parameters for fast testing")
+else:
+    model_id = "MAG_DIST_01"
+    max_steps = 300
+    num_train_epochs = 3
+    per_device_train_batch_size = 2
+    per_device_eval_batch_size = 4
+    eval_steps = 50
+    debug_limit = None  # Use all sequences
+    print("=== FULL TRAINING MODE ===")
+    print("Using full parameters for production training")
 
 from transformers import ASTFeatureExtractor
 
@@ -42,83 +59,69 @@ feature_extractor = ASTFeatureExtractor.from_pretrained(pretrained_model)
 
 working_folder = f"./temp/{model_id}"
 
-
-# set working folder to the project root
-# Function to reset the cwd to the initial directory
-def reset_cwd():
-    os.chdir(initial_cwd)
-    print(f"Current working directory reset to: {os.getcwd()}")
-
-
-reset_cwd()
+reset_to_initial_cwd()
 
 # change to the working folder
-os.makedirs(working_folder, exist_ok=True)
-os.chdir(working_folder)
+setup_working_directory(working_folder)
+
+print("=== Using Pre-generated Synthetic Training Data ===")
+
+# Use all training sequence files from the synthetic_datasets directory
+synthetic_data_dir = "../synthetic_datasets"
+mcap_files = [f for f in os.listdir(synthetic_data_dir) 
+              if f.startswith("training_sequence_") and f.endswith(".mcap") and not f.endswith(".spectrogram.mcap")]
+
+# Apply debug limit if specified
+if debug_limit is not None:
+    mcap_files = mcap_files[:debug_limit]
+    print(f"Found {len(mcap_files)} sequence files for debugging")
+else:
+    print(f"Found {len(mcap_files)} sequence files")
+
 file_pairs = []
+upload_hash_cache = {}  # Cache for tracking file changes
 
-# print the current working directory
-print(f"current working directory: {os.getcwd()}")
+for mcap_file in mcap_files:
+    mcap_path = os.path.join(synthetic_data_dir, mcap_file)
+    labels_file = mcap_path.replace(".mcap", ".labels.json")
+    
+    # Extract plan name from file (e.g., training_sequence_2.mcap -> training_sequence_2)
+    plan_name = mcap_file.replace(".mcap", "")
+    remote_prefix = f"synthetic_datasets/{plan_name}"  # Upload to individual subdirectories
+    
+    # Generate spectrograms in the same directory as the source data
+    spectrogram_mcap_file = os.path.join(synthetic_data_dir, f"{plan_name}.spectrogram.mcap")
+    print(f"Processing {mcap_file}...")
+    mcap_utilities.spectrogram_from_timeseries(mcap_path, spectrogram_mcap_file, feature_extractor=feature_extractor)
+    print(f"✓ Created spectrogram: {spectrogram_mcap_file}")
+    
+    # Upload spectrogram if it has changed
+    spectrogram_filename = os.path.basename(spectrogram_mcap_file)
+    
+    # Use a temporary copy in current directory for upload
+    temp_spectrogram = spectrogram_filename
+    import shutil
+    shutil.copy2(spectrogram_mcap_file, temp_spectrogram)
+    
+    uploaded = upload_if_changed(nst_client, temp_spectrogram, remote_prefix, upload_hash_cache)
+    if uploaded:
+        print(f"📤 Uploaded to: {remote_prefix}/{spectrogram_filename}")
+    
+    # Clean up temp file
+    if os.path.exists(temp_spectrogram):
+        os.remove(temp_spectrogram)
+    
+    file_pairs.append([spectrogram_mcap_file, labels_file])
 
+mode_name = "DEBUG" if args.debug else "FULL TRAINING"
+print(f"\n=== Ready to train with {len(file_pairs)} synthetic datasets ({mode_name}) ===")
 
-def download_if_not_exists(file, dest=None, extract=False):
-    dest = dest if dest else file
-    if not os.path.exists(dest):
-        print(f"downloading {file} to {dest}.")
-        nst_client.download(file, dest)
-        if extract:
-            with tarfile.open(dest, "r:gz") as tar:
-                tar.extractall()
-
-    else:
-        print(f"{dest} exists.")
-
-
-logs = [
-    "Sensor_Log_2023-11-08_07_36_21",
-    "Sensor_Log_2023-11-08_08_25_49",
-    "Sensor_Log_2023-12-07_10_20_28",
-    "Sensor_Log_2023-11-08_09_05_43",
-]
-for log_prefix in logs:
-    # download the input file and label file
-    input_file = f"{log_prefix}.mcap"
-    label_file = f"{log_prefix}.labels.json"
-    spectrogram_mcap_file = f"{log_prefix}.spectrogram.mcap"
-    file_pairs.append([spectrogram_mcap_file, label_file])
-    download_if_not_exists(input_file)
-    download_if_not_exists(label_file)
-
-    def create_spectrogram_if_not_exists(input_file, spectrogram_mcap_file):
-        if not os.path.exists(spectrogram_mcap_file):
-            mcap_utilities.spectrogram_from_timeseries(
-                input_file=input_file,
-                spectrogram_mcap_file=spectrogram_mcap_file,
-                feature_extractor=feature_extractor,
-            )
-            nst_client.upload(
-                spectrogram_mcap_file,
-                f"{model_id}/{spectrogram_mcap_file}",
-                overwrite=True,
-            )
-        else:
-            print(f"{spectrogram_mcap_file} exists.")
-
-    create_spectrogram_if_not_exists(input_file, spectrogram_mcap_file)
-
-
-# create a dataset from the file pairs [spectrogram_file, label_file]
+# create a dataset from the synthetic file pairs [spectrogram_file, label_file]
+print("\n=== Creating Training Dataset ===")
 dataset = mcap_utilities.create_dataset(
     file_pairs=file_pairs,
-    use_unlabeled_sections=True,
-    unlabeled_section_label="low",
-    aggregate_labels=True,
-    aggregate_label_dict={
-        "10_kV": "medium",
-        "20_kV": "medium",
-        "110_kV": "high",
-        "130_kV": "high",
-    },
+    use_unlabeled_sections=False,  # Use only labeled sections for magnetic distortion
+    aggregate_labels=False,  # Keep original mag_distortion labels (0, 1, 2)
 )
 
 dataset.save_to_disk("dataset")
@@ -131,15 +134,15 @@ config = ASTConfig.from_pretrained(pretrained_model)
 # Access the ClassLabel feature for the labels
 label_feature = dataset.features["labels"]
 
-# Get the label names
+# Get the label names (should be ['0', '1', '2'] for mag_distortion levels)
 label_names = label_feature.names
 
-print("Label names:", label_names)
+print("Magnetic distortion classification labels:", label_names)
+print("Label mapping: 0=none, 1=low, 2=high")
 
 config.num_labels = len(label_names)
 config.label2id = {label: i for i, label in enumerate(label_names)}
 config.id2label = {i: label for label, i in config.label2id.items()}
-
 
 # split training data
 if "test" not in dataset:
@@ -147,7 +150,7 @@ if "test" not in dataset:
         test_size=0.2, shuffle=True, seed=0, stratify_by_column="labels"
     )
 
-# Initialize the model with the updated configuration
+# Initialize the model with the updated configuration for magnetic distortion classification
 model = ASTForAudioClassification.from_pretrained(
     pretrained_model, config=config, ignore_mismatched_sizes=True
 )
@@ -157,19 +160,23 @@ from transformers import TrainingArguments
 
 # Configure training run with TrainingArguments class
 training_args = TrainingArguments(
-    output_dir="runs",
-    logging_dir="logs",
-    report_to="tensorboard",
+    output_dir=f"runs{'_debug' if args.debug else ''}",
+    logging_dir=f"logs{'_debug' if args.debug else ''}",
+    report_to="tensorboard", 
     learning_rate=5e-5,  # Learning rate
     push_to_hub=False,
-    num_train_epochs=5,  # Number of epochs
-    per_device_train_batch_size=8,  # Batch size per device
-    eval_strategy="epoch",  # Evaluation strategy
-    save_strategy="epoch",
+    max_steps=max_steps,
+    num_train_epochs=num_train_epochs,
+    per_device_train_batch_size=per_device_train_batch_size,
+    per_device_eval_batch_size=per_device_eval_batch_size,
+    eval_strategy="steps",
+    eval_steps=eval_steps,
+    save_strategy="steps",
+    save_steps=eval_steps,
     load_best_model_at_end=True,
     metric_for_best_model="accuracy",
     logging_strategy="steps",
-    logging_steps=20,
+    logging_steps=10,  # More frequent logging
 )
 
 import evaluate
@@ -181,7 +188,6 @@ precision = evaluate.load("precision")
 f1 = evaluate.load("f1")
 
 AVERAGE = "macro" if config.num_labels > 2 else "binary"
-
 
 def compute_metrics(eval_pred):
     logits = eval_pred.predictions
@@ -204,10 +210,9 @@ def compute_metrics(eval_pred):
     )
     return metrics
 
-
 from transformers import Trainer
 
-# Setup the trainer
+# Setup the trainer for magnetic distortion classification
 trainer = Trainer(
     model=model,
     args=training_args,
@@ -217,7 +222,11 @@ trainer = Trainer(
 )
 
 # print command to start tensorboard in another terminal
-print(f"tensorboard --logdir={training_args.logging_dir}")
+mode_suffix = "_debug" if args.debug else ""
+print(f"\n=== Training Magnetic Distortion Classifier ({mode_name}) ===")
+print(f"Monitor training progress: tensorboard --logdir={training_args.logging_dir}")
+if args.debug:
+    print(f"This is a DEBUG run with max {max_steps} steps and {num_train_epochs} epoch")
 
 trainer.train()
 
@@ -232,12 +241,24 @@ with tarfile.open(model_tar_filename, "w:gz") as tar:
 
 # upload model to nstrumenta
 print(f"uploading {model_tar_filename} to nstrumenta.")
-nst_client.upload(model_tar_filename, f"{model_tar_filename}", overwrite=True)
+nst_client.upload(model_tar_filename, model_tar_filename, overwrite=True)
 
 # run inference on test set
+print("\n=== Evaluating Model ===")
 predictions = trainer.predict(dataset["test"])
-print(predictions)
 
-# print some training metrics
+# print training metrics
 metrics = trainer.evaluate()
-print(metrics)
+print(f"\n=== {mode_name} Complete ===")
+for metric, value in metrics.items():
+    print(f"{metric}: {value:.4f}")
+
+if args.debug:
+    print(f"Check {training_args.logging_dir}/ for tensorboard logs")
+    print(f"Check {training_args.output_dir}/ for model checkpoints")
+else:
+    print(f"Model saved and uploaded: {model_tar_filename}")
+    print(f"Check {training_args.logging_dir}/ for tensorboard logs")
+
+print(f"\n✅ Successfully trained magnetic distortion classifier: {model_id}")
+print("Model can classify magnetic distortion levels: none (0), low (1), high (2)")
