@@ -1,8 +1,32 @@
-# time-series-classifier
-Repository containing colab notebooks for AI development
+# Time-Series-Classifier
+
+Machine learning pipeline for magnetic distortion classification using synthetic sensor data and Audio Spectrogram Transformer (AST) models.
 
 ## Overview
-This repository contains scripts and notebooks for developing and fine-tuning AI models, specifically for audio classification tasks. It includes tools for synthetic data generation, time-series classification, and model fine-tuning.
+
+This repository provides a complete, self-contained machine learning pipeline for time-series classification. It specializes in magnetic distortion detection using an innovative approach that treats sensor data as audio spectrograms, leveraging state-of-the-art audio classification models.
+
+### 🌟 Key Features
+
+- **🔬 Self-Contained Synthetic Data**: Generate realistic IMU sensor data with configurable magnetic distortion
+- **🎵 Audio Classification Approach**: Convert time-series to spectrograms for audio model training
+- **🤖 Modern ML Pipeline**: HuggingFace transformers with Audio Spectrogram Transformer (AST)
+- **📚 Educational Notebooks**: Complete tutorials that work in Google Colab without external dependencies
+- **🎛️ Configurable Training**: Easy to adjust distortion levels, motion patterns, and training parameters
+
+### 📓 Quick Start - Notebooks
+
+The easiest way to get started is with our self-contained Jupyter notebooks:
+
+**📋 [Notebooks README](notebooks/README.md)** - Complete guide to all notebooks
+
+1. **[`classify.ipynb`](notebooks/classify.ipynb)** - Live classification demo with synthetic data
+2. **[`dataset.ipynb`](notebooks/dataset.ipynb)** - Interactive synthetic data exploration  
+3. **[`fine_tune.ipynb`](notebooks/fine_tune.ipynb)** - Train your own models
+
+**🚀 Try in Google Colab:**
+- classify: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nstrumenta/time-series-classifier/blob/main/notebooks/classify.ipynb)
+- fine_tune: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nstrumenta/time-series-classifier/blob/main/notebooks/fine_tune.ipynb)
 
 ## Directory Structure
 
@@ -36,7 +60,7 @@ This repository contains scripts and notebooks for developing and fine-tuning AI
     └── synthetic_data.md             # Documentation
 ```
 
-## Scripts
+## Scripts & Command Line Tools
 
 All scripts use common utilities from `script_utils.py` for consistent environment setup, file management, and Nstrumenta integration.
 
@@ -98,9 +122,15 @@ windows = extract_imu_windows("output.mcap", window_size_ns=1e9)
 ```
 
 ### Using in Colab
-classify: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nstrumenta/time-series-classifier/blob/main/notebooks/classify.ipynb)
 
-fine_tune: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nstrumenta/time-series-classifier/blob/main/notebooks/fine_tune.ipynb)
+The notebooks automatically handle repository setup and environment configuration for Google Colab. Just click and run:
+
+- **Classification Demo**: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nstrumenta/time-series-classifier/blob/main/notebooks/classify.ipynb)
+- **Model Training**: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/nstrumenta/time-series-classifier/blob/main/notebooks/fine_tune.ipynb)
+
+### Command Line Usage
+
+For advanced users and production workflows, use the command-line scripts:
 
 ## Experiment File Example
 
@@ -182,6 +212,95 @@ https://huggingface.co/docs/hub/en/security-tokens
 
 ![hugging face settings access token](image-2.png)
 ### Fine-Tuning a Model
-To fine_tune a model, run the `fine_tune.py` script:
-```sh
+
+To fine-tune a model using synthetic data, you have two options:
+
+**Option 1: Use the Notebook (Recommended)**
+```python
+# Open notebooks/fine_tune.ipynb in Jupyter or Google Colab
+# All synthetic data generation and training is automated
+```
+
+**Option 2: Command Line**
+```bash
 python scripts/fine_tune.py
+```
+
+The fine-tuning process:
+1. Generates synthetic training data with multiple magnetic distortion scenarios
+2. Creates spectrograms from time-series data for audio classification
+3. Trains an Audio Spectrogram Transformer (AST) model
+4. Evaluates performance and saves the trained model
+
+### Classification
+
+**Option 1: Use the Notebook (Recommended)**
+```python
+# Open notebooks/classify.ipynb for interactive classification demo
+# Generates test data and runs inference automatically
+```
+
+**Option 2: Command Line**
+```bash  
+python scripts/classify.py
+```
+
+## 🔬 Synthetic Data Generation
+
+The synthetic data generator creates realistic IMU sensor data with controllable magnetic distortion:
+
+### Configuration Example
+```json
+{
+  "initialization": {
+    "sample_rate": 100,
+    "pose": {
+      "origin": {"lat": 38.446, "lng": -122.687, "height": 0.0}
+    }
+  },
+  "segments": [
+    {
+      "name": "high_distortion_test",
+      "duration_s": 60.0,
+      "rotation_rpy_degrees": {"roll": 30.0, "pitch": 0.0, "yaw": 0.0},
+      "magnetic_distortion": 2.5,
+      "mag_distortion": {"level": "high"}
+    }
+  ]
+}
+```
+
+### Distortion Levels
+- **`none` (0.0)**: Clean magnetic field data
+- **`low` (1.0)**: Subtle magnetic disturbances  
+- **`high` (2.5)**: Strong magnetic interference
+
+## 📚 Documentation
+
+- **[Notebooks README](notebooks/README.md)** - Complete notebook documentation and tutorials
+- **[Synthetic Data Guide](docs/synthetic_data.md)** - Technical details on data generation
+- **[Scripts Documentation](scripts/README_script_utils.md)** - Command-line tool reference
+
+## 🛠️ Setup & Installation
+
+### Prerequisites
+```bash
+pip install datasets[audio]==3.0.1 mcap==1.2.1 torch torchaudio transformers[torch] numpy
+```
+
+### Quick Setup
+```bash
+git clone https://github.com/nstrumenta/time-series-classifier.git
+cd time-series-classifier
+# Open notebooks/classify.ipynb and run all cells!
+```
+
+## 📊 Example Results
+
+The synthetic data approach enables controlled experiments with perfect ground truth:
+
+- **Magnetometer Data**: Realistic 3-axis magnetic field measurements
+- **Accelerometer Data**: Motion-correlated acceleration patterns  
+- **Gyroscope Data**: Angular velocity measurements
+- **Perfect Labels**: Exact magnetic distortion classifications
+- **Reproducible**: Same synthetic data every time
