@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch, torchaudio
 from typing import List
-from datasets import Dataset, Array2D, ClassLabel, Features
+from datasets import Dataset
 import io
 import base64
 
@@ -26,6 +26,27 @@ def deserialize_numpy_array(array_base64):
     buffer = io.BytesIO(array_bytes)
     array = np.load(buffer, allow_pickle=True)
     return array
+
+
+def reshape_spectrogram(flattened_input, height=128, width=1024):
+    """
+    Reshape flattened spectrogram data back to 2D.
+    
+    Args:
+        flattened_input: 1D array or list of flattened spectrogram data
+        height: Height of the spectrogram (default: 128)
+        width: Width of the spectrogram (default: 1024)
+    
+    Returns:
+        numpy array of shape (height, width)
+    
+    Note: Datasets created after Array2D fix store spectrograms as flattened 1D arrays
+    to avoid PyArrow compatibility issues. Use this function to reshape them back to 2D
+    for model training.
+    """
+    if isinstance(flattened_input, list):
+        flattened_input = np.array(flattened_input)
+    return flattened_input.reshape(height, width)
 
 
 def print_mcap_summary(mcap_summary):
@@ -231,18 +252,13 @@ def create_synthetic_dataset(
                 level = event["metadata"]["mag_distortion"]
                 labels.add(f"mag_distortion_{level}")
     
-    class_labels = ClassLabel(names=list(labels))
+    # Create label to ID mapping (direct mapping without ClassLabel)
+    label_list = sorted(list(labels))
+    label_to_id = {label: idx for idx, label in enumerate(label_list)}
     
-    # Define features - using a flattened sensor data array instead of spectrogram
+    # Define features - using flattened arrays to avoid Array2D extension type
     max_samples = int(window_size_ns / 1e6)  # Assume ~1kHz sampling rate
-    features = Features(
-        {
-            "input_values": Array2D(
-                dtype="float32", shape=(len(channels), max_samples)
-            ),
-            "labels": class_labels,
-        }
-    )
+    # Note: Arrays will be flattened to 1D to avoid PyArrow Array2D compatibility issues
     
     input_data = []
     labels_list = []
@@ -294,8 +310,9 @@ def create_synthetic_dataset(
                     
                     # Only add if we have some data
                     if np.any(window_data):
-                        input_data.append(window_data)
-                        labels_list.append(class_labels.str2int(label))
+                        # Flatten 2D array to 1D to avoid Array2D extension type
+                        input_data.append(window_data.flatten())
+                        labels_list.append(label_to_id[label])
                     
                     current_time += step_size_ns
     
@@ -304,8 +321,7 @@ def create_synthetic_dataset(
         {
             "input_values": input_data,
             "labels": labels_list,
-        },
-        features=features,
+        }
     )
 
 
@@ -417,16 +433,12 @@ def create_dataset(
                     event["metadata"] = {key: value}
                 labels.add(f"{key}_{value}")
 
-    class_labels = ClassLabel(names=list(labels))
-    # Define features with audio and label columns
-    features = Features(
-        {
-            "input_values": Array2D(
-                dtype="float32", shape=(128, 1024)
-            ),  # Define the spectrogram feature
-            "labels": class_labels,  # Assign the class labels,
-        }
-    )
+    # Create label to ID mapping (direct mapping without ClassLabel)
+    label_list = sorted(list(labels))
+    label_to_id = {label: idx for idx, label in enumerate(label_list)}
+    
+    # Note: Arrays will be flattened to 1D to avoid PyArrow Array2D compatibility issues
+    # Spectrograms are 128x1024, will be flattened and reshaped during training
     spectrogram_data = []
     labels_list = []
 
@@ -461,15 +473,15 @@ def create_dataset(
 
                             input_values = deserialize_numpy_array(input_values_base64)
 
-                            spectrogram_data.append(input_values)
-                            labels_list.append(class_labels.str2int(label))
+                            # Flatten 2D spectrogram to 1D to avoid Array2D extension type
+                            spectrogram_data.append(input_values.flatten())
+                            labels_list.append(label_to_id[label])
 
     return Dataset.from_dict(
         {
             "input_values": spectrogram_data,
             "labels": labels_list,
-        },
-        features=features,
+        }
     )
 
 

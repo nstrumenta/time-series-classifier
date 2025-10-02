@@ -1,4 +1,4 @@
-FROM nstrumenta/developer:3.1.37
+FROM nstrumenta/data-job-runner:3.1.44
 
 COPY requirements.txt .
 

@@ -131,24 +131,39 @@ from transformers import ASTConfig, ASTForAudioClassification
 # Load configuration from the pretrained model
 config = ASTConfig.from_pretrained(pretrained_model)
 
-# Access the ClassLabel feature for the labels
-label_feature = dataset.features["labels"]
+# Get unique labels from the dataset (labels are now stored as integers)
+# Note: After Array2D fix, we use direct label mapping instead of ClassLabel
+unique_labels = sorted(set(dataset["labels"]))
+num_labels = len(unique_labels)
 
-# Get the label names (should be ['0', '1', '2'] for mag_distortion levels)
-label_names = label_feature.names
-
-print("Magnetic distortion classification labels:", label_names)
+print(f"Magnetic distortion classification labels: {unique_labels}")
 print("Label mapping: 0=none, 1=low, 2=high")
 
-config.num_labels = len(label_names)
-config.label2id = {label: i for i, label in enumerate(label_names)}
-config.id2label = {i: label for label, i in config.label2id.items()}
+config.num_labels = num_labels
+config.label2id = {str(i): i for i in unique_labels}
+config.id2label = {i: str(i) for i in unique_labels}
 
 # split training data
 if "test" not in dataset:
-    dataset = dataset.train_test_split(
-        test_size=0.2, shuffle=True, seed=0, stratify_by_column="labels"
+    # Note: stratify_by_column requires ClassLabel, which we removed for Array2D fix
+    # We'll do manual stratified split instead
+    from sklearn.model_selection import train_test_split
+    
+    # Get indices for stratified split
+    indices = list(range(len(dataset)))
+    train_idx, test_idx = train_test_split(
+        indices, 
+        test_size=0.2, 
+        shuffle=True, 
+        random_state=0,
+        stratify=dataset["labels"]
     )
+    
+    # Create train/test splits using indices
+    dataset = {
+        "train": dataset.select(train_idx),
+        "test": dataset.select(test_idx)
+    }
 
 # Initialize the model with the updated configuration for magnetic distortion classification
 model = ASTForAudioClassification.from_pretrained(
@@ -212,6 +227,31 @@ def compute_metrics(eval_pred):
 
 from transformers import Trainer
 
+# Custom data collator to reshape flattened spectrograms back to 2D
+# Note: After Array2D fix, spectrograms are stored as flattened 1D arrays
+def collate_fn(batch):
+    """Reshape flattened spectrograms back to 2D (128, 1024)"""
+    import torch
+    
+    input_values = []
+    labels = []
+    
+    for item in batch:
+        # Get flattened input and reshape to 2D
+        flattened = item["input_values"]
+        if isinstance(flattened, list):
+            flattened = np.array(flattened)
+        
+        # Reshape from 1D (131072,) back to 2D (128, 1024)
+        reshaped = flattened.reshape(128, 1024)
+        input_values.append(reshaped)
+        labels.append(item["labels"])
+    
+    return {
+        "input_values": torch.tensor(np.array(input_values), dtype=torch.float32),
+        "labels": torch.tensor(labels, dtype=torch.long)
+    }
+
 # Setup the trainer for magnetic distortion classification
 trainer = Trainer(
     model=model,
@@ -219,6 +259,7 @@ trainer = Trainer(
     train_dataset=dataset["train"],
     eval_dataset=dataset["test"],
     compute_metrics=compute_metrics,  # Use the metrics function from above
+    data_collator=collate_fn,  # Use custom collator to reshape spectrograms
 )
 
 # print command to start tensorboard in another terminal
