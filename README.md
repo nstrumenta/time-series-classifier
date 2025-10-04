@@ -48,16 +48,19 @@ The easiest way to get started is with our self-contained Jupyter notebooks:
 │   └── default_plan.json            # Default configuration for synthetic data generation
 ├── scripts/
 │   ├── script_utils.py              # Common utilities for all scripts
+│   ├── convert_sensor_logs.py       # Convert recorded JSON logs to MCAP
 │   ├── generate_synthetic.py        # CLI for synthetic data generation
 │   ├── classify.py                  # Classification script
 │   ├── fine_tune.py                 # Fine-tuning script
 │   └── synthetic_data.py            # Data processing script
 ├── examples/
-│   └── basic_example.py             # Usage demonstration
+│   ├── basic_example.py             # Usage demonstration
+│   └── using_recorded_data.py       # Example using converted sensor logs
 ├── tests/
 │   └── test_synthetic.py            # Test suite
 └── docs/
-    └── synthetic_data.md             # Documentation
+    ├── synthetic_data.md            # Synthetic data generation documentation
+    └── converting_sensor_logs.md    # Guide for converting recorded logs
 ```
 
 ## Scripts & Command Line Tools
@@ -70,6 +73,27 @@ Provides common functions for all scripts:
 - `setup_working_directory()` - Creates and manages working directories
 - `fetch_nstrumenta_file()` - Downloads files from Nstrumenta with optional extraction
 - `upload_with_prefix()` - Uploads files with organized remote paths
+
+### convert_sensor_logs.py
+Convert recorded sensor log JSON files to MCAP format with labels and experiment configurations.
+
+**Features:**
+- Converts iPhone sensor logs (or similar JSON format) to MCAP
+- Generates label files with single event for entire recording
+- Creates experiment configs compatible with training pipeline
+- Automatically uploads to Nstrumenta
+
+**Usage:**
+```bash
+# Convert all sensor logs in temp/ directory
+python scripts/convert_sensor_logs.py
+
+# Programmatic usage
+from convert_sensor_logs import convert_sensor_log
+convert_sensor_log("temp/Sensor_Log_xyz.json", distortion_level="0")
+```
+
+**See:** [`docs/converting_sensor_logs.md`](docs/converting_sensor_logs.md) for detailed documentation.
 
 ### generate_synthetic.py
 Command-line interface for generating synthetic sensor data from motion plans.

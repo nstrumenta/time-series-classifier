@@ -118,7 +118,8 @@ import hashlib
 def upload_with_prefix(
     client: NstrumentaClient, 
     local_file: str, 
-    remote_prefix: str, 
+    remote_prefix: str,
+    remote_filename: str = None,
     overwrite: bool = True
 ):
     """
@@ -128,9 +129,13 @@ def upload_with_prefix(
         client: NstrumentaClient instance
         local_file: Local file path to upload
         remote_prefix: Remote path prefix (e.g., log name)
+        remote_filename: Optional remote filename (defaults to basename of local_file)
         overwrite: Whether to overwrite existing remote files
     """
-    remote_path = f"{remote_prefix}/{local_file}"
+    if remote_filename is None:
+        remote_filename = os.path.basename(local_file)
+    
+    remote_path = f"{remote_prefix}/{remote_filename}"
     print(f"Uploading {local_file} to {remote_path}")
     client.upload(local_file, remote_path, overwrite=overwrite)
 
